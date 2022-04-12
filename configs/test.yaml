@@ -3,16 +3,23 @@ pretrained: true
 
 dataset: Flowers102
 num_classes: 102
+epochs: 2
+cooldown_epochs: 1
+
+sched: cosine
+smoothing: 0
 
 opt: sgd
 momentum: 0.9
 weight_decay: 0
-sched: cosine
-smoothing: 0
+drop: 0.1
+warmup_epochs: 1
+warmup_lr: 0.000001
+lr: 0.003
 
-batch_size: 32
+batch_size: 64
 workers: 8
 pin_mem: true
-channels_last: false # try out true
+channels_last: true
 
 log_wandb: true

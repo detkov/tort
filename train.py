@@ -78,7 +78,7 @@ _logger = logging.getLogger('train')
 # The first arg parser parses out only the --config argument, this argument is used to
 # load a yaml file containing key-values that override the defaults for the main parser below
 config_parser = parser = argparse.ArgumentParser(description='Training Config', add_help=False)
-parser.add_argument('-c', '--config', default='', type=str, metavar='FILE',
+parser.add_argument('-c', '--config', default='configs/test.yaml', type=str, metavar='FILE',
                     help='YAML config file specifying default arguments')
 
 
@@ -181,7 +181,7 @@ parser.add_argument('--decay-epochs', type=float, default=100, metavar='N',
                     help='epoch interval to decay LR')
 parser.add_argument('--warmup-epochs', type=int, default=3, metavar='N',
                     help='epochs to warmup LR, if scheduler supports')
-parser.add_argument('--cooldown-epochs', type=int, default=10, metavar='N',
+parser.add_argument('--cooldown-epochs', type=int, default=3, metavar='N',
                     help='epochs to cooldown LR at min_lr, after cyclic schedule ends')
 parser.add_argument('--patience-epochs', type=int, default=10, metavar='N',
                     help='patience epochs for Plateau LR scheduler (default: 10')
@@ -273,12 +273,12 @@ parser.add_argument('--seed', type=int, default=42, metavar='S',
                     help='random seed (default: 42)')
 parser.add_argument('--worker-seeding', type=str, default='all',
                     help='worker seed mode (default: all)')
-parser.add_argument('--log-interval', type=int, default=1, metavar='N',
+parser.add_argument('--log-interval', type=int, default=100, metavar='N',
                     help='how many batches to wait before logging training status')
 parser.add_argument('--recovery-interval', type=int, default=0, metavar='N',
                     help='how many batches to wait before writing recovery checkpoint')
-parser.add_argument('--checkpoint-hist', type=int, default=10, metavar='N',
-                    help='number of checkpoints to keep (default: 10)')
+parser.add_argument('--checkpoint-hist', type=int, default=5, metavar='N',
+                    help='number of checkpoints to keep (default: 5)')
 parser.add_argument('-j', '--workers', type=int, default=4, metavar='N',
                     help='how many training processes to use (default: 4)')
 parser.add_argument('--save-images', action='store_true', default=False,
@@ -607,6 +607,7 @@ def main():
     if args.rank == 0:
         exp_name = '-'.join([args.version, datetime.now().strftime("%Y%m%d-%H%M%S"),])
         output_dir = join(args.output, exp_name)
+        os.makedirs(output_dir, exist_ok=True)
         decreasing = True if eval_metric == 'loss' else False
         saver = CheckpointSaver(
             model=model, optimizer=optimizer, args=args, model_ema=model_ema, amp_scaler=loss_scaler,

@@ -1,4 +1,4 @@
-from torchvision.datasets import FGVCAircraft, Flowers102, Food101, StanfordCars, OxfordIIITPet
+from torchvision.datasets import FGVCAircraft, Flowers102, Food101, StanfordCars, OxfordIIITPet, FakeData
 
 
 dataset_config = {
@@ -10,6 +10,8 @@ dataset_config = {
 }
 
 def create_dataset(name, root, is_training):
+    if name == 'test':
+        return FakeData(256, (3, 224, 224), 10)
     if not name in dataset_config.keys():
         raise Exception('Unsupported dataset name.')
     dataset = dataset_config[name][0]
