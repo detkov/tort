@@ -15,5 +15,4 @@ workers: 8
 pin_mem: true
 channels_last: false # try out true
 
-experiment: tort
 log_wandb: true
