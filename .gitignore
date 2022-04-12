@@ -1,3 +1,11 @@
+flowers-102/*
+food-101/*
+fgvc-aircraft-2013b/*
+gtsrb/*
+stanford_cars/*
+oxford-iiit-pet/*
+wandb/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

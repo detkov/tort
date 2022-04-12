@@ -1,0 +1,19 @@
+model: vit_base_patch16_224
+pretrained: true
+
+dataset: Flowers102
+num_classes: 102
+
+opt: sgd
+momentum: 0.9
+weight_decay: 0
+sched: cosine
+smoothing: 0
+
+batch_size: 32
+workers: 8
+pin_mem: true
+channels_last: false # try out true
+
+experiment: tort
+log_wandb: true
