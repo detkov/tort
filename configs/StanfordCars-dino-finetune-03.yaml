@@ -1,0 +1,20 @@
+batch_size: 64
+channels_last: true
+dataset: StanfordCars
+drop: 0.1
+log_wandb: true
+lr: 0.003
+model: vit_base_patch16_224_dino
+num_classes: 196
+opt: adam
+opt-betas:
+- 0.9
+- 0.999
+pin_mem: true
+pretrained: true
+sched: cosine
+smoothing: 0
+warmup_epochs: 3
+warmup_lr: 1.0e-06
+weight_decay: 0.1
+workers: 8
