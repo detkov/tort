@@ -6,6 +6,9 @@ stanford_cars/*
 oxford-iiit-pet/*
 wandb/*
 results/*
+*.tar.gz
+*.tar
+*.gz
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
