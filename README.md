@@ -3,7 +3,7 @@ Tort: Self-supervised student-teacher ViT training for mortals
 
 Run:
 ```
-pip install -r requrements.txt
+pip install -r requirements.txt
 wandb login
 git config --global user.email nds-gfk@mail.ru
 git config --global user.name detkov
