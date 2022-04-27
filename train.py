@@ -35,19 +35,15 @@ from timm.models import (convert_splitbn_model, create_model, load_checkpoint,
                          model_parameters, resume_checkpoint, safe_model_name)
 from timm.optim import create_optimizer_v2, optimizer_kwargs
 from timm.scheduler import create_scheduler
-from timm.utils.agc import adaptive_clip_grad
 from timm.utils.checkpoint_saver import CheckpointSaver
 from timm.utils.clip_grad import dispatch_clip_grad
 from timm.utils.cuda import ApexScaler, NativeScaler
 from timm.utils.distributed import distribute_bn, reduce_tensor
-from timm.utils.jit import set_jit_legacy
-from timm.utils.log import FormatterNoInfo, setup_default_logging
+from timm.utils.log import setup_default_logging
 from timm.utils.metrics import AverageMeter, accuracy
-from timm.utils.misc import add_bool_arg, natural_key
-from timm.utils.model import freeze, get_state_dict, unfreeze, unwrap_model
-from timm.utils.model_ema import ModelEma, ModelEmaV2
+from timm.utils.model_ema import ModelEmaV2
 from timm.utils.random import random_seed
-from timm.utils.summary import get_outdir, update_summary
+from timm.utils.summary import update_summary
 from torch.nn.parallel import DistributedDataParallel as NativeDDP
 
 from dataset import create_dataset
@@ -311,7 +307,6 @@ parser.add_argument('--log-wandb', action='store_true', default=False,
 
 
 def _parse_args():
-    # Do we have a config file to parse?
     args_config, remaining = config_parser.parse_known_args()
 
     if args_config.config:
@@ -319,12 +314,9 @@ def _parse_args():
             cfg = yaml.safe_load(f)
             parser.set_defaults(**cfg)
 
-    # The main arg parser parses the rest of the args, the usual
-    # defaults will have been overridden if config file specified.
     args = parser.parse_args(remaining)
     args.version = splitext(basename(args_config.config))[0]
 
-    # Cache the args as a text string to save them in the output dir later
     args_text = yaml.safe_dump(args.__dict__, default_flow_style=False)
     return args, args_text
 
@@ -377,9 +369,6 @@ def main():
                         "Install NVIDA apex or upgrade to PyTorch 1.6")
 
     random_seed(args.seed, args.rank)
-
-    # if args.fuser:
-    #     set_jit_fuser(args.fuser)
 
     model = create_model(
         args.model,
