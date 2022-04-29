@@ -1,8 +1,8 @@
 model: vit_base_patch16_224
 pretrained: true
 
-dataset: Flowers102
-num_classes: 102
+dataset: test
+num_classes: 10
 epochs: 2
 cooldown_epochs: 1
 
@@ -22,4 +22,4 @@ workers: 8
 pin_mem: true
 channels_last: true
 
-log_wandb: true
+log_wandb: false
