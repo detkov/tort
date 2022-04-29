@@ -509,7 +509,6 @@ def main():
 
     try:
         for epoch in range(start_epoch, num_epochs):
-
             train_metrics = train_one_epoch(
                 epoch, model, loader_train, optimizer, train_loss_fn, args,
                 lr_scheduler=lr_scheduler, saver=saver, output_dir=output_dir,
