@@ -1,0 +1,33 @@
+# Dataset parameters
+data_dir: ./
+dataset: test
+num_classes: 10
+
+# Model parameters
+model: vit_base_patch16_224     # Name of model to train (default: "vit_base_patch16_224"
+pretrained: true                # Start with pretrained version of specified network (if avail)
+initial_checkpoint: none        # Initialize model from this checkpoint (default: none)
+resume: none                    # Resume full model and optimizer state from checkpoint (default: none)
+no_resume_opt: false
+gp: none
+img_size: none
+input_size: none
+crop_pct: none
+mean: none
+std: none
+interpolation: ''
+batch_size: 128
+validation_batch_size: none
+channels_last: true
+torchscript: false
+grad_checkpointing: false
+
+# Optimizer parameters
+opt: sgd
+opt_ems: none
+opt_betas: none
+momentum: 0.9
+weight_decay: 0.00002
+clip_grad: none
+clip_mode: norm
+layer_decay: 

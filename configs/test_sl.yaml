@@ -1,5 +1,8 @@
 model: vit_base_patch16_224
 pretrained: true
+amp: false
+native_amp: false
+
 
 dataset: test
 num_classes: 10

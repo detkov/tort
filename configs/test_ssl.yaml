@@ -1,0 +1,6 @@
+model: vit_base
+momentum_teacher: 0.9998
+epochs: 3
+warmup_epochs: 1
+use_fp16: true
+batch_size_per_gpu: 32
