@@ -28,6 +28,7 @@ import torch.nn.functional as F
 from torchvision import transforms
 from torchvision import models as torchvision_models
 import wandb
+from dataset import create_dataset
 
 # from dataset import create_dataset
 from train_dino_parser import parse_ssl_args
@@ -50,8 +51,8 @@ def main():
     print("\n".join("%s: %s" % (k, str(v)) for k, v in sorted(dict(vars(args)).items())))
 
     # ============ preparing data ... ============
-    from torchvision.datasets import FakeData
-    dataset = FakeData(256, (3, 224, 224), 10) # create_dataset(args.dataset, args.data_dir, is_training=True)
+    # from torchvision.datasets import FakeData
+    dataset = create_dataset(args.dataset, args.data_dir, is_training=True) # FakeData(32, (3, 224, 224), 10) #
     dataset.transform = DataAugmentationDINO(
         args.global_crops_scale,
         args.local_crops_scale,
@@ -123,16 +124,6 @@ def main():
         p.requires_grad = False
     print(f"Student and Teacher are built: they are both {args.model} network.")
 
-    # ============ preparing loss ... ============
-    dino_loss = DINOLoss(
-        args.out_dim,
-        args.local_crops_number + 2,  # total number of crops = 2 global crops + local_crops_number
-        args.warmup_teacher_temp,
-        args.teacher_temp,
-        args.warmup_teacher_temp_epochs,
-        args.epochs,
-    ).cuda()
-
     # ============ preparing optimizer ... ============
     params_groups = utils.get_params_groups(student)
     if args.optimizer == "adamw":
@@ -141,10 +132,12 @@ def main():
         optimizer = torch.optim.SGD(params_groups, lr=0, momentum=0.9)  # lr is set by scheduler
     elif args.optimizer == "lars":
         optimizer = utils.LARS(params_groups)  # to use with convnet and large batches
+
     # for mixed precision training
     fp16_scaler = None
     if args.use_fp16:
         fp16_scaler = torch.cuda.amp.GradScaler()
+
 
     # ============ init schedulers ... ============
     lr_schedule = utils.cosine_scheduler(
@@ -162,6 +155,16 @@ def main():
     momentum_schedule = utils.cosine_scheduler(args.momentum_teacher, 1,
                                                args.epochs, len(data_loader))
     print(f"Loss, optimizer and schedulers ready.")
+
+    # ============ preparing loss ... ============
+    dino_loss = DINOLoss(
+        args.out_dim,
+        args.local_crops_number + 2,  # total number of crops = 2 global crops + local_crops_number
+        args.warmup_teacher_temp,
+        args.teacher_temp,
+        args.warmup_teacher_temp_epochs,
+        args.epochs,
+    ).cuda()
 
     # ============ optionally resume training ... ============
     to_restore = {"epoch": 0}
