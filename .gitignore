@@ -9,6 +9,8 @@ results/*
 *.tar.gz
 *.tar
 *.gz
+dino/wandb/*
+# dino/results/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
