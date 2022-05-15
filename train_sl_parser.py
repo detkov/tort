@@ -6,7 +6,7 @@ import yaml
 
 def parse_sl_args():
     config_parser = parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config', default='configs/test_sl.yaml', type=str, 
+    parser.add_argument('-c', '--config', default='./configs/test_sl.yaml', type=str, 
                         help='YAML config file specifying default arguments')
     parser = argparse.ArgumentParser()
 
@@ -205,8 +205,6 @@ def parse_sl_args():
                         help='disable fast prefetcher')
     parser.add_argument('--output', default='./results', type=str, 
                         help='path to output folder (default: none, current dir)')
-    parser.add_argument('--experiment', default='tort', type=str, 
-                        help='name of train experiment')
     parser.add_argument('--eval_metric', default='top1', type=str, 
                         help='Best metric (default: "top1"')
     parser.add_argument('--tta', type=int, default=0, 
@@ -214,8 +212,14 @@ def parse_sl_args():
     parser.add_argument("--local_rank", default=0, type=int)
     parser.add_argument('--use_multi_epochs_loader', action='store_true', default=False,
                         help='use the multi-epochs-loader to save time at the beginning of every epoch')
+    
+    #Logging
     parser.add_argument('--log_wandb', action='store_true', default=False,
                         help='log training and validation metrics to wandb')
+    parser.add_argument('--experiment', default='tort', type=str, 
+                        help='name of train experiment')
+    parser.add_argument('--entity', default='detkov', type=str, 
+                        help='wandb account')
 
     args_config, remaining = config_parser.parse_known_args()
 

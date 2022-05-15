@@ -6,11 +6,12 @@ from contextlib import suppress
 from datetime import datetime
 from os.path import join
 
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.model_selection import cross_val_score
 import numpy as np
 import torch
-from timm.models import (create_model, model_parameters, resume_checkpoint, safe_model_name)
+from PIL import Image
+from sklearn.model_selection import cross_val_score
+from sklearn.neighbors import KNeighborsClassifier
+from timm.models import create_model, model_parameters, resume_checkpoint
 from timm.optim import create_optimizer_v2, optimizer_kwargs
 from timm.scheduler import create_scheduler
 from timm.utils.checkpoint_saver import CheckpointSaver
@@ -20,15 +21,13 @@ from timm.utils.log import setup_default_logging
 from timm.utils.metrics import AverageMeter
 from timm.utils.random import random_seed
 from timm.utils.summary import update_summary
-import wandb
-import torch.nn.functional as F
 from torchvision import transforms
-from PIL import Image
+import wandb
 
 from dataset import create_dataset
-from vision_transformer import DINOHead
-from utils import MultiCropWrapper, DINOLoss as TortLoss, DataAugmentationDINO as DataAugmentationTort, cosine_scheduler
-from train_dino_parser_timm import parse_ssl_args
+from tort import DataAugmentationTort, MultiViewWrapper, TortHead, TortLoss
+from tort_utils import cosine_scheduler
+from train_ssl_parser import parse_ssl_args
 
 try:
     from apex import amp
@@ -53,18 +52,13 @@ def main():
     
     if args.log_wandb:
         wandb.init(name=args.version, project=args.experiment, 
-                   entity='detkov', config=args)
+                   entity=args.entity, config=args)
     
-    # args.prefetcher = not args.no_prefetcher
     args.device = 'cuda'
-    # args.world_size = 1
-    # args.rank = 0
-    # args.local_rank = 0
 
     # resolve AMP arguments based on PyTorch / Apex availability
     use_amp = None
     if args.amp:
-        # `--amp` chooses native amp before apex (APEX ver not actively maintained)
         if has_native_amp:
             args.native_amp = True
         elif has_apex:
@@ -94,15 +88,11 @@ def main():
         scriptable=args.torchscript,
     )
 
-    student = MultiCropWrapper(student, DINOHead(embed_dim, args.out_dim, use_bn=args.use_bn_in_head, 
+    student = MultiViewWrapper(student, TortHead(embed_dim, args.out_dim, use_bn=args.use_bn_in_head, 
                                                  norm_last_layer=args.norm_last_layer))
-    teacher = MultiCropWrapper(teacher, DINOHead(embed_dim, args.out_dim, args.use_bn_in_head))
+    teacher = MultiViewWrapper(teacher, TortHead(embed_dim, args.out_dim, args.use_bn_in_head))
 
 
-    # if args.local_rank == 0:
-    #     _logger.info(f'Student and Teacher models `{safe_model_name(args.model)}` are created, param count:{sum([m.numel() for m in student.parameters()])}')
-
-    # move model to GPU, enable channels last layout if set
     student = student.to(args.device)
     teacher = teacher.to(args.device)
     if args.channels_last:
@@ -125,17 +115,13 @@ def main():
     if use_amp == 'apex':
         student, optimizer = amp.initialize(student, optimizer, opt_level='O1')
         loss_scaler = ApexScaler()
-        # if args.local_rank == 0:
         _logger.info('Using NVIDIA APEX AMP. Training in mixed precision.')
     elif use_amp == 'native':
         amp_autocast = torch.cuda.amp.autocast
         loss_scaler = NativeScaler()
-        # if args.local_rank == 0:
         _logger.info('Using native Torch AMP. Training in mixed precision.')
     else:
-        # if args.local_rank == 0:
         _logger.info('AMP not enabled. Training in float32.')
-
 
     # optionally resume from a checkpoint
     resume_epoch = None
@@ -158,7 +144,6 @@ def main():
     if lr_scheduler is not None and start_epoch > 0:
         lr_scheduler.step(start_epoch)
 
-    # if args.local_rank == 0:
     _logger.info('Scheduled epochs: {}'.format(num_epochs))
 
     dataset_train = create_dataset(args.dataset, args.data_dir, is_training=True)
@@ -169,22 +154,15 @@ def main():
         args.local_crops_number,
     )
     dataset_valid.transform = transforms.Compose([
-            transforms.Resize((224, 224), interpolation=Image.BICUBIC),
+            transforms.Resize(256, interpolation=Image.BICUBIC),
+            transforms.CenterCrop(224),
             transforms.ToTensor(),
             transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
         ])
     loader_train = torch.utils.data.DataLoader(dataset_train, batch_size=args.batch_size_per_gpu,
-        num_workers=args.workers,
-        shuffle=True,
-        pin_memory=True,
-        drop_last=True,
-    )
+        num_workers=args.workers, shuffle=True, pin_memory=True, drop_last=True)
     loader_valid = torch.utils.data.DataLoader(dataset_valid, batch_size=args.batch_size_per_gpu,
-        num_workers=args.workers,
-        shuffle=False,
-        pin_memory=True,
-        drop_last=False
-    )
+        num_workers=args.workers, shuffle=False, pin_memory=True, drop_last=False)
 
     train_loss_fn = TortLoss(
         args.out_dim,
@@ -203,7 +181,6 @@ def main():
     best_epoch = None
     saver = None
     output_dir = None
-    # if args.rank == 0:
     exp_name = '-'.join([args.version, datetime.now().strftime("%Y%m%d-%H%M%S"),])
     output_dir = join(args.output, exp_name)
     os.makedirs(output_dir, exist_ok=True)
@@ -255,7 +232,6 @@ def train_one_epoch_ssl(
     num_updates = epoch * len(loader)
     for batch_idx, (input, _) in enumerate(loader):
         last_batch = batch_idx == last_idx
-        # if not args.prefetcher:
         input = [el.to(args.device) for el in input]
         if args.channels_last:
             input = [el.contiguous(memory_format=torch.channels_last) for el in input]
@@ -295,7 +271,6 @@ def train_one_epoch_ssl(
             lrl = [param_group['lr'] for param_group in optimizer.param_groups]
             lr = sum(lrl) / len(lrl)
 
-            # if args.local_rank == 0:
             _logger.info(
                 'Train: {} [{:>4d}/{} ({:>3.0f}%)]  '
                 'Loss: {loss.val:#.4g} ({loss.avg:#.3g})  '
@@ -331,12 +306,9 @@ def valid_one_epoch_ssl(epoch, student, loader, args, amp_autocast=suppress):
     start = time.time()
     student.eval()
 
-    last_idx = len(loader) - 1
     features, labels = None, None
     with torch.no_grad():
         for batch_idx, (input, batch_labels) in enumerate(loader):
-            last_batch = batch_idx == last_idx
-            # if not args.prefetcher:
             input = input.to(args.device)
             if args.channels_last:
                 input = input.contiguous(memory_format=torch.channels_last)
@@ -360,10 +332,10 @@ def valid_one_epoch_ssl(epoch, student, loader, args, amp_autocast=suppress):
 
     features = features.view(-1, features.shape[-1]).numpy()
     labels = labels.view(-1).numpy()
-    cls = KNeighborsClassifier(n_neighbors=1, metric='cosine').fit(features, labels)
+    cls = KNeighborsClassifier(n_neighbors=20, metric='cosine').fit(features, labels)
     acc1 = 100 * np.mean(cross_val_score(cls, features, labels))
 
-    _logger.info(f'Valid : {epoch} Acc@1: {acc1:>7.4f} Time: {time.time() - start:.3f}s')
+    _logger.info(f'Valid: {epoch} Acc@1: {acc1:>7.4f} Time: {time.time() - start:.3f}s')
 
     return OrderedDict([('top1', acc1)])
 
