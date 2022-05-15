@@ -21,6 +21,7 @@ warmup_lr: 0
 opt: lookahead_adamw
 clip_mode: norm
 clip_grad: 3.0
+weight_decay: 0.04
 
 epochs: 100
 warmup_epochs: 10

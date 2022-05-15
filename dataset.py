@@ -11,7 +11,7 @@ dataset_config = {
 
 def create_dataset(name, root, is_training):
     if name == 'test':
-        return FakeData(32, (3, 224, 224), 10)
+        return FakeData(64, (3, 224, 224), 10)
     if not name in dataset_config.keys():
         raise Exception('Unsupported dataset name.')
     dataset = dataset_config[name][0]
