@@ -1,6 +1,6 @@
 model: vit_base_patch16_224
 pretrained: false
-use_fp16: true
+amp: true
 
 momentum_teacher: 0.9998
 out_dim: 2048
@@ -21,12 +21,12 @@ opt: lookahead_adamw
 clip_mode: norm
 clip_grad: 3.0
 
-epochs: 5
-warmup_epochs: 1
-cooldown_epochs: 1
+epochs: 100
+warmup_epochs: 10
+cooldown_epochs: 3
 
 dataset: Flowers102
 num_classes: 0
 data_dir: ../
 
-log_wandb: false
+log_wandb: true

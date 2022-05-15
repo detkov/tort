@@ -318,16 +318,17 @@ def train_one_epoch_ssl(
         if lr_scheduler is not None:
             lr_scheduler.step_update(num_updates=num_updates, metric=losses_m.avg)
 
-
         end = time.time()
         # end for
-    
+    _logger.info('Train: {} Time: {batch_time.sum:.3f}s'.format(epoch, batch_time=batch_time_m))
+
     if hasattr(optimizer, 'sync_lookahead'):
         optimizer.sync_lookahead()
 
     return OrderedDict([('loss', losses_m.avg)])
 
 def valid_one_epoch_ssl(epoch, student, loader, args, amp_autocast=suppress):
+    start = time.time()
     student.eval()
 
     last_idx = len(loader) - 1
@@ -362,7 +363,7 @@ def valid_one_epoch_ssl(epoch, student, loader, args, amp_autocast=suppress):
     cls = KNeighborsClassifier(n_neighbors=1, metric='cosine').fit(features, labels)
     acc1 = 100 * np.mean(cross_val_score(cls, features, labels))
 
-    _logger.info(f'Valid : {epoch:03} Acc@1: {acc1:>7.4f} ')
+    _logger.info(f'Valid : {epoch} Acc@1: {acc1:>7.4f} Time: {time.time() - start:.3f}s')
 
     return OrderedDict([('top1', acc1)])
 
