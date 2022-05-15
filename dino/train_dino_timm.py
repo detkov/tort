@@ -6,6 +6,9 @@ from contextlib import suppress
 from datetime import datetime
 from os.path import join
 
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import cross_val_score
+import numpy as np
 import torch
 from timm.models import (create_model, model_parameters, resume_checkpoint, safe_model_name)
 from timm.optim import create_optimizer_v2, optimizer_kwargs
@@ -18,6 +21,9 @@ from timm.utils.metrics import AverageMeter
 from timm.utils.random import random_seed
 from timm.utils.summary import update_summary
 import wandb
+import torch.nn.functional as F
+from torchvision import transforms
+from PIL import Image
 
 from dataset import create_dataset
 from vision_transformer import DINOHead
@@ -51,9 +57,9 @@ def main():
     
     # args.prefetcher = not args.no_prefetcher
     args.device = 'cuda'
-    args.world_size = 1
-    args.rank = 0
-    args.local_rank = 0
+    # args.world_size = 1
+    # args.rank = 0
+    # args.local_rank = 0
 
     # resolve AMP arguments based on PyTorch / Apex availability
     use_amp = None
@@ -77,26 +83,15 @@ def main():
         args.model,
         pretrained=args.pretrained,
         num_classes=0,
-        # drop_rate=args.drop,
-        # drop_connect_rate=args.drop_connect,  # DEPRECATED, use drop_path
         drop_path_rate=args.drop_path,
-        # drop_block_rate=args.drop_block,
-        # global_pool=args.gp,
         scriptable=args.torchscript,
-        # checkpoint_path=args.initial_checkpoint
     )
     embed_dim = student.embed_dim
     teacher = create_model(
         args.model,
         pretrained=args.pretrained,
         num_classes=0,
-        # drop_rate=args.drop,
-        # drop_connect_rate=args.drop_connect,  # DEPRECATED, use drop_path
-        # drop_path_rate=args.drop_path,
-        # drop_block_rate=args.drop_block,
-        # global_pool=args.gp,
         scriptable=args.torchscript,
-        # checkpoint_path=args.initial_checkpoint
     )
 
     student = MultiCropWrapper(student, DINOHead(embed_dim, args.out_dim, use_bn=args.use_bn_in_head, 
@@ -104,12 +99,12 @@ def main():
     teacher = MultiCropWrapper(teacher, DINOHead(embed_dim, args.out_dim, args.use_bn_in_head))
 
 
-    if args.local_rank == 0:
-        _logger.info(f'Student and Teacher models `{safe_model_name(args.model)}` are created, param count:{sum([m.numel() for m in student.parameters()])}')
+    # if args.local_rank == 0:
+    #     _logger.info(f'Student and Teacher models `{safe_model_name(args.model)}` are created, param count:{sum([m.numel() for m in student.parameters()])}')
 
     # move model to GPU, enable channels last layout if set
-    student = student.to('cuda')
-    teacher = teacher.to('cuda')
+    student = student.to(args.device)
+    teacher = teacher.to(args.device)
     if args.channels_last:
         student = student.to(memory_format=torch.channels_last)
         teacher = teacher.to(memory_format=torch.channels_last)
@@ -130,16 +125,16 @@ def main():
     if use_amp == 'apex':
         student, optimizer = amp.initialize(student, optimizer, opt_level='O1')
         loss_scaler = ApexScaler()
-        if args.local_rank == 0:
-            _logger.info('Using NVIDIA APEX AMP. Training in mixed precision.')
+        # if args.local_rank == 0:
+        _logger.info('Using NVIDIA APEX AMP. Training in mixed precision.')
     elif use_amp == 'native':
         amp_autocast = torch.cuda.amp.autocast
         loss_scaler = NativeScaler()
-        if args.local_rank == 0:
-            _logger.info('Using native Torch AMP. Training in mixed precision.')
+        # if args.local_rank == 0:
+        _logger.info('Using native Torch AMP. Training in mixed precision.')
     else:
-        if args.local_rank == 0:
-            _logger.info('AMP not enabled. Training in float32.')
+        # if args.local_rank == 0:
+        _logger.info('AMP not enabled. Training in float32.')
 
 
     # optionally resume from a checkpoint
@@ -149,7 +144,8 @@ def main():
             student, args.resume,
             optimizer=None if args.no_resume_opt else optimizer,
             loss_scaler=None if args.no_resume_opt else loss_scaler,
-            log_info=args.local_rank == 0)
+            # log_info=args.local_rank == 0)
+            log_info=True)
 
     # setup learning rate schedule and starting epoch
     lr_scheduler, num_epochs = create_scheduler(args, optimizer)
@@ -162,20 +158,32 @@ def main():
     if lr_scheduler is not None and start_epoch > 0:
         lr_scheduler.step(start_epoch)
 
-    if args.local_rank == 0:
-        _logger.info('Scheduled epochs: {}'.format(num_epochs))
+    # if args.local_rank == 0:
+    _logger.info('Scheduled epochs: {}'.format(num_epochs))
 
-    dataset = create_dataset(args.dataset, args.data_dir, is_training=True)
-    dataset.transform = DataAugmentationTort(
+    dataset_train = create_dataset(args.dataset, args.data_dir, is_training=True)
+    dataset_valid = create_dataset(args.dataset, args.data_dir, is_training=False)
+    dataset_train.transform = DataAugmentationTort(
         args.global_crops_scale,
         args.local_crops_scale,
         args.local_crops_number,
     )
-    loader_train = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size_per_gpu,
+    dataset_valid.transform = transforms.Compose([
+            transforms.Resize((224, 224), interpolation=Image.BICUBIC),
+            transforms.ToTensor(),
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        ])
+    loader_train = torch.utils.data.DataLoader(dataset_train, batch_size=args.batch_size_per_gpu,
         num_workers=args.workers,
         shuffle=True,
         pin_memory=True,
         drop_last=True,
+    )
+    loader_valid = torch.utils.data.DataLoader(dataset_valid, batch_size=args.batch_size_per_gpu,
+        num_workers=args.workers,
+        shuffle=False,
+        pin_memory=True,
+        drop_last=False
     )
 
     train_loss_fn = TortLoss(
@@ -185,7 +193,7 @@ def main():
         args.teacher_temp,
         args.warmup_teacher_temp_epochs,
         num_epochs,
-    ).cuda()
+    ).to(args.device)
 
     momentum_scheduler = cosine_scheduler(args.momentum_teacher, 1, args.epochs, len(loader_train))
 
@@ -195,16 +203,16 @@ def main():
     best_epoch = None
     saver = None
     output_dir = None
-    if args.rank == 0:
-        exp_name = '-'.join([args.version, datetime.now().strftime("%Y%m%d-%H%M%S"),])
-        output_dir = join(args.output, exp_name)
-        os.makedirs(output_dir, exist_ok=True)
-        decreasing = True if eval_metric == 'loss' else False
-        saver = CheckpointSaver(
-            model=student, optimizer=optimizer, args=args, amp_scaler=loss_scaler,
-            checkpoint_dir=output_dir, recovery_dir=output_dir, decreasing=decreasing, max_history=args.checkpoint_hist)
-        with open(join(output_dir, 'args_ssl.yaml'), 'w') as f:
-            f.write(args_text)
+    # if args.rank == 0:
+    exp_name = '-'.join([args.version, datetime.now().strftime("%Y%m%d-%H%M%S"),])
+    output_dir = join(args.output, exp_name)
+    os.makedirs(output_dir, exist_ok=True)
+    decreasing = True if eval_metric == 'loss' else False
+    saver = CheckpointSaver(
+        model=student, optimizer=optimizer, args=args, amp_scaler=loss_scaler,
+        checkpoint_dir=output_dir, recovery_dir=output_dir, decreasing=decreasing, max_history=args.checkpoint_hist)
+    with open(join(output_dir, 'args_ssl.yaml'), 'w') as f:
+        f.write(args_text)
 
     try:
         for epoch in range(start_epoch, num_epochs):
@@ -213,11 +221,13 @@ def main():
                 momentum_scheduler, lr_scheduler=lr_scheduler, saver=saver, 
                 amp_autocast=amp_autocast, loss_scaler=loss_scaler)
 
+            valid_metrics = valid_one_epoch_ssl(epoch, student, loader_valid, args, amp_autocast)
+
             if lr_scheduler is not None:
                 lr_scheduler.step(epoch + 1, train_metrics[eval_metric])
 
             if output_dir is not None:
-                update_summary(epoch, train_metrics, train_metrics, join(output_dir, 'summary.csv'),
+                update_summary(epoch, train_metrics, valid_metrics, join(output_dir, 'summary.csv'),
                                write_header=best_metric is None, log_wandb=args.log_wandb)
 
             if saver is not None:
@@ -236,17 +246,17 @@ def train_one_epoch_ssl(
 
     second_order = hasattr(optimizer, 'is_second_order') and optimizer.is_second_order
     batch_time_m = AverageMeter()
-    data_time_m = AverageMeter()
     losses_m = AverageMeter()
+
+    student.train()
 
     end = time.time()
     last_idx = len(loader) - 1
     num_updates = epoch * len(loader)
     for batch_idx, (input, _) in enumerate(loader):
         last_batch = batch_idx == last_idx
-        data_time_m.update(time.time() - end)
         # if not args.prefetcher:
-        input = [el.to('cuda') for el in input]
+        input = [el.to(args.device) for el in input]
         if args.channels_last:
             input = [el.contiguous(memory_format=torch.channels_last) for el in input]
 
@@ -285,23 +295,21 @@ def train_one_epoch_ssl(
             lrl = [param_group['lr'] for param_group in optimizer.param_groups]
             lr = sum(lrl) / len(lrl)
 
-            if args.local_rank == 0:
-                _logger.info(
-                    'Train: {} [{:>4d}/{} ({:>3.0f}%)]  '
-                    'Loss: {loss.val:#.4g} ({loss.avg:#.3g})  '
-                    'Time: {batch_time.val:.3f}s, {rate:>7.2f}/s  '
-                    '({batch_time.avg:.3f}s, {rate_avg:>7.2f}/s)  '
-                    'LR: {lr:.3e}  '
-                    'Data: {data_time.val:.3f} ({data_time.avg:.3f})'.format(
-                        epoch,
-                        batch_idx, len(loader),
-                        100. * batch_idx / last_idx,
-                        loss=losses_m,
-                        batch_time=batch_time_m,
-                        rate=input[0].size(0) / batch_time_m.val,
-                        rate_avg=input[0].size(0) / batch_time_m.avg,
-                        lr=lr,
-                        data_time=data_time_m))
+            # if args.local_rank == 0:
+            _logger.info(
+                'Train: {} [{:>4d}/{} ({:>3.0f}%)]  '
+                'Loss: {loss.val:#.4g} ({loss.avg:#.3g})  '
+                'Time: {batch_time.val:.3f}s, {rate:>7.2f}/s  '
+                '({batch_time.avg:.3f}s, {rate_avg:>7.2f}/s)  '
+                'LR: {lr:.3e}  '.format(
+                    epoch,
+                    batch_idx, len(loader),
+                    100. * batch_idx / last_idx,
+                    loss=losses_m,
+                    batch_time=batch_time_m,
+                    rate=input[0].size(0) / batch_time_m.val,
+                    rate_avg=input[0].size(0) / batch_time_m.avg,
+                    lr=lr))
 
         if saver is not None and args.recovery_interval and (
                 last_batch or (batch_idx + 1) % args.recovery_interval == 0):
@@ -318,6 +326,46 @@ def train_one_epoch_ssl(
         optimizer.sync_lookahead()
 
     return OrderedDict([('loss', losses_m.avg)])
+
+def valid_one_epoch_ssl(epoch, student, loader, args, amp_autocast=suppress):
+    student.eval()
+
+    last_idx = len(loader) - 1
+    features, labels = None, None
+    with torch.no_grad():
+        for batch_idx, (input, batch_labels) in enumerate(loader):
+            last_batch = batch_idx == last_idx
+            # if not args.prefetcher:
+            input = input.to(args.device)
+            if args.channels_last:
+                input = input.contiguous(memory_format=torch.channels_last)
+
+            with amp_autocast():
+                student_output = student(input).cpu()
+
+            if features is None:
+                features = torch.zeros(len(loader.dataset), student_output.shape[-1])
+            if labels is None:
+                labels = torch.zeros(len(loader.dataset))
+
+            start_idx = args.batch_size_per_gpu * batch_idx
+            end_idx = args.batch_size_per_gpu * (batch_idx+1)
+            features[start_idx:end_idx] = student_output
+            labels[start_idx:end_idx] = batch_labels
+
+            torch.cuda.synchronize()
+            # end for
+        # end no_grad
+
+    features = features.view(-1, features.shape[-1]).numpy()
+    labels = labels.view(-1).numpy()
+    cls = KNeighborsClassifier(n_neighbors=1, metric='cosine').fit(features, labels)
+    acc1 = 100 * np.mean(cross_val_score(cls, features, labels))
+
+    _logger.info(f'Valid : {epoch:03} Acc@1: {acc1:>7.4f} ')
+
+    return OrderedDict([('top1', acc1)])
+
 
 if __name__ == '__main__':
     main()

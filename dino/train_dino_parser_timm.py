@@ -52,9 +52,6 @@ def parse_ssl_args():
     parser.add_argument('--batch_size_per_gpu', default=64, type=int,
         help='Per-GPU batch-size : number of distinct images loaded on one GPU.')
     parser.add_argument('--epochs', default=100, type=int, help='Number of epochs of training.')
-    parser.add_argument('--freeze_last_layer', default=1, type=int, help="""Number of epochs
-        during which we keep the output layer fixed. Typically doing so during
-        the first epoch helps training. Try increasing this value if the loss does not decrease.""")
     parser.add_argument('--start_epoch', default=None, type=int, 
                         help='manual epoch number (useful on restarts)')
     parser.add_argument('--eval_metric', default='loss', type=str, 
