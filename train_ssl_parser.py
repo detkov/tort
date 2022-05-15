@@ -115,7 +115,7 @@ def parse_ssl_args():
                         help='Use NVIDIA Apex AMP mixed precision')
     parser.add_argument('--native_amp', action='store_true', default=False,
                         help='Use Native Torch AMP mixed precision')
-    parser.add_argument('--output', default="../results", type=str, help='Path to save logs and checkpoints.')
+    parser.add_argument('--output', default="./results", type=str, help='Path to save logs and checkpoints.')
     parser.add_argument('--eval_metric', default='loss', type=str, 
                         help='Best metric (default: "top1"')
     

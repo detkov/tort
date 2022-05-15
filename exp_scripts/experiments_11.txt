@@ -1,0 +1,9 @@
+python train_ssl.py -c configs/11_000.yaml && python train_ssl.py -c configs/11_005.yaml && python train_ssl.py -c configs/11_010.yaml && python train_ssl.py -c configs/11_015.yaml && python train_ssl.py -c configs/11_020.yaml && python train_ssl.py -c configs/11_025.yaml && python train_ssl.py -c configs/11_030.yaml
+
+python train_ssl.py -c configs/11_001.yaml && python train_ssl.py -c configs/11_006.yaml && python train_ssl.py -c configs/11_011.yaml && python train_ssl.py -c configs/11_016.yaml && python train_ssl.py -c configs/11_021.yaml && python train_ssl.py -c configs/11_026.yaml && python train_ssl.py -c configs/11_031.yaml
+
+python train_ssl.py -c configs/11_002.yaml && python train_ssl.py -c configs/11_007.yaml && python train_ssl.py -c configs/11_012.yaml && python train_ssl.py -c configs/11_017.yaml && python train_ssl.py -c configs/11_022.yaml && python train_ssl.py -c configs/11_027.yaml
+
+python train_ssl.py -c configs/11_003.yaml && python train_ssl.py -c configs/11_008.yaml && python train_ssl.py -c configs/11_013.yaml && python train_ssl.py -c configs/11_018.yaml && python train_ssl.py -c configs/11_023.yaml && python train_ssl.py -c configs/11_028.yaml
+
+python train_ssl.py -c configs/11_004.yaml && python train_ssl.py -c configs/11_009.yaml && python train_ssl.py -c configs/11_014.yaml && python train_ssl.py -c configs/11_019.yaml && python train_ssl.py -c configs/11_024.yaml && python train_ssl.py -c configs/11_029.yaml
