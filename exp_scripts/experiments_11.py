@@ -5,7 +5,8 @@ from itertools import product
 
 
 if __name__ == '__main__':
-    configs_dir = join('configs', '11')
+    series = os.path.basename(__file__).split('.')[0].split('_')[-1]
+    configs_dir = join('configs', series)
     os.makedirs(configs_dir, exist_ok=True)
     
     common_params = {
@@ -64,5 +65,5 @@ if __name__ == '__main__':
                         **common_params})
     
     for i, config in enumerate(configs):
-        with open(join(configs_dir, f'{i:03}.yaml'), 'w') as outfile:
+        with open(join(configs_dir, f'{series}_{i:03}.yaml'), 'w') as outfile:
             yaml.dump(config, outfile, default_flow_style=False)

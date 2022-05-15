@@ -4,7 +4,8 @@ from os.path import join
 
 
 if __name__ == '__main__':
-    configs_dir = join('configs', '03')
+    series = os.path.basename(__file__).split('.')[0].split('_')[-1]
+    configs_dir = join('configs', series)
     os.makedirs(configs_dir, exist_ok=True)
 
     dataset_names = ['FGVCAircraft', 'Flowers102', 'Food101', 'StanfordCars', 'OxfordIIITPet']
