@@ -1,6 +1,7 @@
 model: vit_base_patch16_224
 pretrained: true
 amp: false
+experiments_group: test_sl
 
 dataset: test
 num_classes: 10

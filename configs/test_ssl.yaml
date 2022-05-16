@@ -1,6 +1,7 @@
 model: vit_base_patch16_224
 pretrained: false
 amp: true
+experiments_group: test_ssl
 
 momentum_teacher: 0.9998
 out_dim: 2048

@@ -80,6 +80,12 @@ def parse_ssl_args():
                         help='Gradient clipping mode. One of ("norm", "value", "agc")')
     parser.add_argument('--layer_decay', type=float, default=None,
                         help='layer-wise learning rate decay (default: None)')    
+    parser.add_argument('--decay_epochs', type=float, default=None, 
+                        help='epoch interval to decay LR')
+    parser.add_argument('--patience_epochs', type=int, default=None, 
+                        help='patience epochs for Plateau LR scheduler (default: 10')
+    parser.add_argument('--decay_rate', '--dr', type=float, default=None, 
+                        help='LR decay rate (default: 0.1)')
 
     # Learning rate schedule parameters
     parser.add_argument('--sched', default='cosine', type=str, 
@@ -126,6 +132,8 @@ def parse_ssl_args():
                         help='name of train experiment')
     parser.add_argument('--entity', default='detkov', type=str, 
                         help='wandb account')
+    parser.add_argument('--experiments_group', default='test', type=str, 
+                        help='experiments group for easy filtering')
 
     args_config, remaining = config_parser.parse_known_args()
 

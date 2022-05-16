@@ -220,6 +220,8 @@ def parse_sl_args():
                         help='name of train experiment')
     parser.add_argument('--entity', default='detkov', type=str, 
                         help='wandb account')
+    parser.add_argument('--experiments_group', default='test', type=str, 
+                        help='experiments group for easy filtering')
 
     args_config, remaining = config_parser.parse_known_args()
 

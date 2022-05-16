@@ -25,7 +25,7 @@ from torchvision import transforms
 import wandb
 
 from dataset import create_dataset
-from tort import DataAugmentationTort, MultiViewWrapper, TortHead, TortLoss
+from tort import DataAugmentationTort, MultiCropWrapper, TortHead, CESoftmaxLoss
 from tort_utils import cosine_scheduler
 from train_ssl_parser import parse_ssl_args
 
@@ -88,9 +88,9 @@ def main():
         scriptable=args.torchscript,
     )
 
-    student = MultiViewWrapper(student, TortHead(embed_dim, args.out_dim, use_bn=args.use_bn_in_head, 
+    student = MultiCropWrapper(student, TortHead(embed_dim, args.out_dim, use_bn=args.use_bn_in_head, 
                                                  norm_last_layer=args.norm_last_layer))
-    teacher = MultiViewWrapper(teacher, TortHead(embed_dim, args.out_dim, args.use_bn_in_head))
+    teacher = MultiCropWrapper(teacher, TortHead(embed_dim, args.out_dim, args.use_bn_in_head))
 
 
     student = student.to(args.device)
@@ -164,7 +164,7 @@ def main():
     loader_valid = torch.utils.data.DataLoader(dataset_valid, batch_size=args.batch_size_per_gpu,
         num_workers=args.workers, shuffle=False, pin_memory=True, drop_last=False)
 
-    train_loss_fn = TortLoss(
+    train_loss_fn = CESoftmaxLoss(
         args.out_dim,
         args.local_crops_number + 2,  # total number of crops = 2 global crops + local_crops_number
         args.warmup_teacher_temp,

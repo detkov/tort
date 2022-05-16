@@ -47,7 +47,7 @@ class TortHead(nn.Module):
         return x
 
 
-class TortLoss(nn.Module):
+class CESoftmaxLoss(nn.Module):
     def __init__(self, out_dim, ncrops, warmup_teacher_temp, teacher_temp,
                  warmup_teacher_temp_epochs, nepochs, student_temp=0.1,
                  center_momentum=0.9):
@@ -92,19 +92,15 @@ class TortLoss(nn.Module):
 
     @torch.no_grad()
     def update_center(self, teacher_output):
-        """
-        Update center used for teacher output.
-        """
         batch_center = torch.sum(teacher_output, dim=0, keepdim=True)
-        # dist.all_reduce(batch_center)
         batch_center = batch_center / len(teacher_output)
-
-        # ema update
         self.center = self.center * self.center_momentum + batch_center * (1 - self.center_momentum)
 
 
 class DataAugmentationTort(object):
-    def __init__(self, global_crops_scale, local_crops_scale, local_crops_number):
+    def __init__(self, global_crops_scale, local_crops_scale, local_crops_number, masked_crop_scale=None):
+        self.apply_masking = masked_crop_scale is not None
+
         flip_and_color_jitter = transforms.Compose([
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomApply(
@@ -123,6 +119,7 @@ class DataAugmentationTort(object):
             transforms.RandomResizedCrop(224, scale=global_crops_scale, interpolation=Image.BICUBIC),
             flip_and_color_jitter,
             GaussianBlur(1.0),
+            # transforms.ToTensor(),
             normalize,
         ])
         # second global crop
@@ -131,14 +128,26 @@ class DataAugmentationTort(object):
             flip_and_color_jitter,
             GaussianBlur(0.1),
             Solarization(0.2),
+            # transforms.ToTensor(),
             normalize,
         ])
+        # masked crop
+        if self.apply_masking:
+            self.masked_transform = transforms.Compose([
+                transforms.RandomResizedCrop(224, scale=global_crops_scale, interpolation=Image.BICUBIC),
+                flip_and_color_jitter,
+                normalize,
+                # transforms.ToTensor(),
+                transforms.RandomErasing(1, masked_crop_scale, (0.75, 1))
+            ])
+
         # transformation for the local small crops
         self.local_crops_number = local_crops_number
         self.local_transform = transforms.Compose([
             transforms.RandomResizedCrop(96, scale=local_crops_scale, interpolation=Image.BICUBIC),
             flip_and_color_jitter,
             GaussianBlur(p=0.5),
+            # transforms.ToTensor(),
             normalize,
         ])
 
@@ -146,22 +155,16 @@ class DataAugmentationTort(object):
         crops = []
         crops.append(self.global_transform1(image))
         crops.append(self.global_transform2(image))
+        if self.apply_masking:
+            crops.append(self.masked_transform(image))
         for _ in range(self.local_crops_number):
             crops.append(self.local_transform(image))
         return crops
 
 
-class MultiViewWrapper(nn.Module):
-    """
-    Perform forward pass separately on each resolution input.
-    The inputs corresponding to a single resolution are clubbed and single
-    forward is run on the same resolution inputs. Hence we do several
-    forward passes = number of different resolutions used. We then
-    concatenate all the output features and run the head forward on these
-    concatenated features.
-    """
+class MultiCropWrapper(nn.Module):
     def __init__(self, backbone, head):
-        super(MultiViewWrapper, self).__init__()
+        super(MultiCropWrapper, self).__init__()
         backbone.fc, backbone.head = nn.Identity(), nn.Identity()
         self.backbone = backbone
         self.head = head
