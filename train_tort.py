@@ -29,7 +29,7 @@ from tort_head import MultiCropWrapper, TortHead
 from tort_aug import TortAugmenter, rand_rot
 from tort_loss import TortLoss
 from tort_utils import cosine_scheduler
-from train_ssl_parser import parse_ssl_args
+from train_tort_parser import parse_ssl_args
 
 try:
     from apex import amp
@@ -175,7 +175,7 @@ def main():
         num_workers=args.workers, shuffle=False, pin_memory=True, drop_last=False)
 
     train_loss_fn = TortLoss(args.use_sl_loss, args.use_rot_loss, 
-        args.device, args.rep_w, args.sl_w, args.rot_w, 
+        args.device, args.con_w, args.sl_w, args.rot_w, 
         args.out_dim, global_crops_number, masked_crops_number, args.local_crops_number, args.warmup_teacher_temp,
         args.teacher_temp, args.warmup_teacher_temp_epochs, num_epochs, args.student_temp,
         args.center_momentum, args.sl_smoothing)
@@ -234,9 +234,9 @@ def train_one_epoch_ssl(
     batch_time_m = AverageMeter()
     losses_m = AverageMeter()
 
-    use_rep_losses_m = args.use_sl_loss or args.use_rot_loss
-    if use_rep_losses_m:
-        rep_losses_m = AverageMeter()
+    use_con_losses_m = args.use_sl_loss or args.use_rot_loss
+    if use_con_losses_m:
+        con_losses_m = AverageMeter()
 
     student.train()
 
@@ -252,40 +252,40 @@ def train_one_epoch_ssl(
     end = time.time()
     last_idx = len(loader) - 1
     num_updates = epoch * len(loader)
-    for batch_idx, (input, sl_labels) in enumerate(loader):
+    for batch_idx, (x, y_lbl) in enumerate(loader):
         last_batch = batch_idx == last_idx
-        input = [el.to(args.device) for el in input]
+        x = [el.to(args.device) for el in x]
 
         if args.use_sl_loss:
             if args.apply_masking:
-                sl_labels = torch.cat([sl_labels, sl_labels, sl_labels])
+                y_lbl = torch.cat([y_lbl, y_lbl, y_lbl])
             else:
-                sl_labels = torch.cat([sl_labels, sl_labels])
-            sl_labels = sl_labels.long().to(args.device)
+                y_lbl = torch.cat([y_lbl, y_lbl])
+            y_lbl = y_lbl.long().to(args.device)
 
         rot_labels = None
         if args.use_rot_loss:
-            input[0], rots_g1 = rand_rot(input[0], args.rot_prob)
-            input[1], rots_g2 = rand_rot(input[1], args.rot_prob)
-            rot_labels = [*rots_g1, *rots_g2]
+            x[0], y_g1_rot = rand_rot(x[0], args.rot_prob)
+            x[1], y_g2_rot = rand_rot(x[1], args.rot_prob)
+            rot_labels = [*y_g1_rot, *y_g2_rot]
             if args.apply_masking:
-                input[2], rots_m = rand_rot(input[2], args.rot_prob)
+                x[2], rots_m = rand_rot(x[2], args.rot_prob)
                 rot_labels.extend(rots_m)
             rot_labels = torch.tensor(rot_labels).long().to(args.device)
         
         if args.channels_last:
-            input = [el.contiguous(memory_format=torch.channels_last) for el in input]
+            x = [el.contiguous(memory_format=torch.channels_last) for el in x]
 
         with amp_autocast():
-            teacher_output, _, _ = teacher(input[:n_gm_crops], use_sl_for=None, use_rot_for=None)
-            student_output, sl_pred, rot_pred = student(input, use_sl_for=use_sl_for, use_rot_for=use_rot_for)
-            loss, rep_loss, sl_loss, rot_loss = loss_fn(student_output, teacher_output, epoch, 
-                                                        sl_pred, sl_labels, 
-                                                        rot_pred, rot_labels)
+            y_te_con, _, _ = teacher(x[:n_gm_crops], use_sl_for=None, use_rot_for=None)
+            y_st_con, y_st_lbl, y_st_rot = student(x, use_sl_for=use_sl_for, use_rot_for=use_rot_for)
+            loss, con_loss, sl_loss, rot_loss = loss_fn(y_st_con, y_te_con, epoch, 
+                                                        y_st_lbl, y_lbl, 
+                                                        y_st_rot, rot_labels)
 
         losses_m.update(loss.item())
-        if use_rep_losses_m:
-            rep_losses_m.update(rep_loss.item())
+        if use_con_losses_m:
+            con_losses_m.update(con_loss.item())
         if args.use_sl_loss:
             sl_losses_m.update(sl_loss.item())
         if args.use_rot_loss:
@@ -321,10 +321,10 @@ def train_one_epoch_ssl(
 
             log_str = (f'Train: {epoch} [{batch_idx:>4d}/{len(loader)} ({100. * batch_idx / last_idx:>3.0f}%)]  ' +
                        f'Loss: {losses_m.val:#.4g} ({losses_m.avg:#.3g})  ' + 
-                      (f'L_rep: {rep_losses_m.val:#.4g}  ' if use_rep_losses_m else '') +
+                      (f'L_con: {con_losses_m.val:#.4g}  ' if use_con_losses_m else '') +
                       (f'L_sl: {sl_losses_m.val:#.4g}  ' if args.use_sl_loss else '') +
                       (f'L_rot: {rot_losses_m.val:#.4g}  ' if args.use_rot_loss else '') +
-                       f'Time: {batch_time_m.val:.3f}s, {input[0].size(0) / batch_time_m.val:>7.2f}/s  ' +
+                       f'Time: {batch_time_m.val:.3f}s, {x[0].size(0) / batch_time_m.val:>7.2f}/s  ' +
                        f'LR: {lr:.3e}  '
                 )
             _logger.info(log_str)
@@ -344,8 +344,8 @@ def train_one_epoch_ssl(
         optimizer.sync_lookahead()
 
     metrics = [('loss', losses_m.avg)]
-    if use_rep_losses_m:
-        metrics.append(('loss_rep', rep_losses_m.avg))
+    if use_con_losses_m:
+        metrics.append(('loss_rep', con_losses_m.avg))
     if args.use_sl_loss:
         metrics.append(('loss_sl', sl_losses_m.avg))
     if args.use_rot_loss:
@@ -361,18 +361,18 @@ def valid_one_epoch_ssl(epoch, student, loader, args, amp_autocast=suppress):
         prediction = None
 
     with torch.no_grad():
-        for batch_idx, (input, sl_labels) in enumerate(loader):
-            input = input.to(args.device)
+        for batch_idx, (x, y_lbl) in enumerate(loader):
+            x = x.to(args.device)
             if args.channels_last:
-                input = input.contiguous(memory_format=torch.channels_last)
+                x = x.contiguous(memory_format=torch.channels_last)
 
             with amp_autocast():
-                student_output, sl_pred, _ = student(input, use_sl_for=args.batch_size_per_gpu, use_rot_for=False)
-                student_output = student_output.cpu()
-                sl_pred = torch.softmax(sl_pred, 1).argmax(1).cpu()
+                y_st_con, y_st_lbl, _ = student(x, use_sl_for=args.batch_size_per_gpu, use_rot_for=False)
+                y_st_con = y_st_con.cpu()
+                y_st_lbl = torch.softmax(y_st_lbl, 1).argmax(1).cpu()
 
             if features is None:
-                features = torch.zeros(len(loader.dataset), student_output.shape[-1])
+                features = torch.zeros(len(loader.dataset), y_st_con.shape[-1])
             if labels is None:
                 labels = torch.zeros(len(loader.dataset))
             if args.use_sl_loss:
@@ -381,10 +381,10 @@ def valid_one_epoch_ssl(epoch, student, loader, args, amp_autocast=suppress):
 
             start_idx = args.batch_size_per_gpu * batch_idx
             end_idx = args.batch_size_per_gpu * (batch_idx+1)
-            features[start_idx:end_idx] = student_output
-            labels[start_idx:end_idx] = sl_labels
+            features[start_idx:end_idx] = y_st_con
+            labels[start_idx:end_idx] = y_lbl
             if args.use_sl_loss:
-                prediction[start_idx:end_idx] = sl_pred
+                prediction[start_idx:end_idx] = y_st_lbl
 
             # torch.cuda.synchronize()
             # end for

@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 
 class TortLoss(nn.Module):
-    def __init__(self, use_sl_loss, use_rot_loss, device, rep_w, sl_w, rot_w,
+    def __init__(self, use_sl_loss, use_rot_loss, device, con_w, sl_w, rot_w,
                  out_dim, global_crops_number, masked_crops_number, local_crops_number, warmup_teacher_temp, 
                  teacher_temp, warmup_teacher_temp_epochs, num_epochs, student_temp, 
                  center_momentum, smoothing):
@@ -13,7 +13,7 @@ class TortLoss(nn.Module):
         self.use_sl_loss = use_sl_loss
         self.use_rot_loss = use_rot_loss
 
-        self.rep_loss_fn = RepresentationCrossEntropyLoss(out_dim, 
+        self.con_loss_fn = ContrastiveCrossEntropyLoss(out_dim, 
                             global_crops_number, masked_crops_number, local_crops_number, 
                             warmup_teacher_temp, teacher_temp, warmup_teacher_temp_epochs, 
                             num_epochs, student_temp, center_momentum).to(device)
@@ -22,7 +22,7 @@ class TortLoss(nn.Module):
         if self.use_rot_loss:
             self.rot_loss_fn = CrossEntropyLoss().to(device)
         
-        self.rep_w = rep_w
+        self.con_w = con_w
         self.sl_w = sl_w
         self.rot_w = rot_w
     
@@ -30,16 +30,16 @@ class TortLoss(nn.Module):
                 sl_pred, sl_labels, 
                 rot_pred, rot_labels):
         sl_loss, rot_loss = 0, 0
-        rep_loss = self.rep_loss_fn(student_output, teacher_output, epoch)
+        con_loss = self.con_loss_fn(student_output, teacher_output, epoch)
         if self.use_sl_loss:
             sl_loss = self.sl_loss_fn(sl_pred, sl_labels)
         if self.use_rot_loss:
             rot_loss = self.rot_loss_fn(rot_pred, rot_labels)
-        loss = rep_loss * self.rep_w + sl_loss * self.sl_w + rot_loss * self.rot_w
-        return loss, rep_loss, sl_loss, rot_loss
+        loss = con_loss * self.con_w + sl_loss * self.sl_w + rot_loss * self.rot_w
+        return loss, con_loss, sl_loss, rot_loss
 
 
-class RepresentationCrossEntropyLoss(nn.Module):
+class ContrastiveCrossEntropyLoss(nn.Module):
     def __init__(self, out_dim, n_g_crops, n_m_crops, n_add_crops, warmup_teacher_temp, teacher_temp,
                  warmup_teacher_temp_epochs, nepochs, student_temp, center_momentum=0.9):
         super().__init__()

@@ -9,6 +9,7 @@ class TortHead(nn.Module):
     def __init__(self, in_dim, out_dim, use_bn=False, norm_last_layer=True, nlayers=3, 
                  hidden_dim=2048, bottleneck_dim=256, num_classes=None, is_rot_head=None):
         super().__init__()
+        
         # contrastive part
         nlayers = max(nlayers, 1)
         if nlayers == 1:
@@ -26,10 +27,10 @@ class TortHead(nn.Module):
             layers.append(nn.Linear(hidden_dim, bottleneck_dim))
             self.mlp = nn.Sequential(*layers)
         self.apply(self._init_weights)
-        self.contrastive_head = weight_norm(nn.Linear(bottleneck_dim, out_dim, bias=False))
-        self.contrastive_head.weight_g.data.fill_(1)
+        self.con_head = weight_norm(nn.Linear(bottleneck_dim, out_dim, bias=False))
+        self.con_head.weight_g.data.fill_(1)
         if norm_last_layer:
-            self.contrastive_head.weight_g.requires_grad = False
+            self.con_head.weight_g.requires_grad = False
         
         # supervised learning part
         self.is_sl_head = num_classes is not None
@@ -49,11 +50,11 @@ class TortHead(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def forward(self, x, use_sl_for, use_rot_for):
-        contrastive_emb = self.contrastive_head(nn.functional.normalize(self.mlp(x), dim=-1, p=2))
+        con_emb = self.con_head(nn.functional.normalize(self.mlp(x), dim=-1, p=2))
         sl_emb = self.sl_head(x[:use_sl_for]) if self.is_sl_head and use_sl_for is not None else None
-        rotation_emb = self.rot_head(x[:use_rot_for]) if self.is_rot_head and use_rot_for is not None else None
+        rot_emb = self.rot_head(x[:use_rot_for]) if self.is_rot_head and use_rot_for is not None else None
 
-        return [contrastive_emb, sl_emb, rotation_emb]
+        return [con_emb, sl_emb, rot_emb]
 
 
 class MultiCropWrapper(nn.Module):

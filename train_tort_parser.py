@@ -44,7 +44,7 @@ def parse_ssl_args():
     parser.add_argument('--apply_masking', default=False, type=bool)
     parser.add_argument('--use_sl_loss', default=False, type=bool)
     parser.add_argument('--use_rot_loss', default=False, type=bool)
-    parser.add_argument('--rep_w', default=1, type=float)
+    parser.add_argument('--con_w', default=1, type=float)
     parser.add_argument('--sl_w', default=0, type=float)
     parser.add_argument('--rot_w', default=0, type=float)
     parser.add_argument('--out_dim', default=65536, type=int, help="""Dimensionality of
