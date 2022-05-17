@@ -35,8 +35,8 @@ class Solarization(object):
             return img
 
 class TortAugmenter(object):
-    def __init__(self, global_crops_scale, local_crops_scale, local_crops_number, masked_crop_scale=None):
-        self.apply_masking = masked_crop_scale is not None
+    def __init__(self, global_crops_scale, local_crops_scale, local_crops_number, apply_masking, masked_crop_scale):
+        self.apply_masking = apply_masking
 
         flip_and_color_jitter = transforms.Compose([
             transforms.RandomHorizontalFlip(p=0.5),

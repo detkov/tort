@@ -37,11 +37,11 @@ def parse_ssl_args():
     parser.add_argument('--local_crops_scale', type=float, nargs='+', default=(0.05, 0.4),
         help="""Scale range of the cropped image before resizing, relatively to the origin image.
         Used for small local view cropping of multi-crop.""")
-    parser.add_argument('--masked_crop_scale', type=float, nargs='+', default=None,
+    parser.add_argument('--masked_crop_scale', type=float, nargs='+', default=(0.2, 0.6),
         help="""Scale range of the mask to be erased from the corresponding crop (0.2, 0.6)""")
 
     # Tort's models parameters
-    parser.add_argument('--use_rep_loss', default=True, type=bool)
+    parser.add_argument('--apply_masking', default=False, type=bool)
     parser.add_argument('--use_sl_loss', default=False, type=bool)
     parser.add_argument('--use_rot_loss', default=False, type=bool)
     parser.add_argument('--rep_w', default=1, type=float)

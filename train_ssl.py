@@ -150,29 +150,31 @@ def main():
 
     _logger.info('Scheduled epochs: {}'.format(num_epochs))
 
-    masked_crops_number = 1 if args.masked_crop_scale is not None else 0
+    masked_crops_number = int(args.apply_masking)
     global_crops_number = 2
 
     dataset_train = create_dataset(args.dataset, args.data_dir, is_training=True)
-    dataset_valid = create_dataset(args.dataset, args.data_dir, is_training=False)
     dataset_train.transform = TortAugmenter(
         args.global_crops_scale,
         args.local_crops_scale,
         args.local_crops_number,
+        args.apply_masking,
         args.masked_crop_scale,
     )
+    loader_train = torch.utils.data.DataLoader(dataset_train, batch_size=args.batch_size_per_gpu,
+        num_workers=args.workers, shuffle=True, pin_memory=True, drop_last=True)
+
+    dataset_valid = create_dataset(args.dataset, args.data_dir, is_training=False)
     dataset_valid.transform = transforms.Compose([
             transforms.Resize(256, interpolation=Image.BICUBIC),
             transforms.CenterCrop(224),
             transforms.ToTensor(),
             transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
         ])
-    loader_train = torch.utils.data.DataLoader(dataset_train, batch_size=args.batch_size_per_gpu,
-        num_workers=args.workers, shuffle=True, pin_memory=True, drop_last=True)
     loader_valid = torch.utils.data.DataLoader(dataset_valid, batch_size=args.batch_size_per_gpu,
         num_workers=args.workers, shuffle=False, pin_memory=True, drop_last=False)
 
-    train_loss_fn = TortLoss(args.use_rep_loss, args.use_sl_loss, args.use_rot_loss, 
+    train_loss_fn = TortLoss(args.use_sl_loss, args.use_rot_loss, 
         args.device, args.rep_w, args.sl_w, args.rot_w, 
         args.out_dim, global_crops_number, masked_crops_number, args.local_crops_number, args.warmup_teacher_temp,
         args.teacher_temp, args.warmup_teacher_temp_epochs, num_epochs, args.student_temp,
@@ -199,7 +201,7 @@ def main():
     try:
         for epoch in range(start_epoch, num_epochs):
             train_metrics = train_one_epoch_ssl(
-                epoch, student, teacher, loader_train, global_crops_number, masked_crops_number,
+                epoch, student, teacher, loader_train, global_crops_number,
                 optimizer, train_loss_fn, args, 
                 momentum_scheduler, lr_scheduler=lr_scheduler, saver=saver, 
                 amp_autocast=amp_autocast, loss_scaler=loss_scaler)
@@ -224,7 +226,7 @@ def main():
 
 
 def train_one_epoch_ssl(
-        epoch, student, teacher, loader, global_crops_number, masked_crops_number, 
+        epoch, student, teacher, loader, global_crops_number, 
         optimizer, loss_fn, args, momentum_scheduler,
         lr_scheduler=None, saver=None, amp_autocast=suppress, loss_scaler=None):
 
@@ -238,7 +240,7 @@ def train_one_epoch_ssl(
 
     student.train()
 
-    n_gm_crops = global_crops_number + masked_crops_number
+    n_gm_crops = global_crops_number + int(args.apply_masking)
     use_sl_for, use_rot_for = None, None
     if args.use_sl_loss:
         use_sl_for = n_gm_crops * args.batch_size_per_gpu
@@ -255,7 +257,7 @@ def train_one_epoch_ssl(
         input = [el.to(args.device) for el in input]
 
         if args.use_sl_loss:
-            if masked_crops_number > 0:
+            if args.apply_masking:
                 sl_labels = torch.cat([sl_labels, sl_labels, sl_labels])
             else:
                 sl_labels = torch.cat([sl_labels, sl_labels])
@@ -266,7 +268,7 @@ def train_one_epoch_ssl(
             input[0], rots_g1 = rand_rot(input[0], args.rot_prob)
             input[1], rots_g2 = rand_rot(input[1], args.rot_prob)
             rot_labels = [*rots_g1, *rots_g2]
-            if masked_crops_number > 0:
+            if args.apply_masking:
                 input[2], rots_m = rand_rot(input[2], args.rot_prob)
                 rot_labels.extend(rots_m)
             rot_labels = torch.tensor(rot_labels).long().to(args.device)
@@ -310,7 +312,7 @@ def train_one_epoch_ssl(
             for param_q, param_k in zip(student.parameters(), teacher.parameters()):
                 param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
 
-        torch.cuda.synchronize()
+        # torch.cuda.synchronize()
         num_updates += 1
         batch_time_m.update(time.time() - end)
         if last_batch or batch_idx % args.log_interval == 0:
@@ -336,7 +338,7 @@ def train_one_epoch_ssl(
 
         end = time.time()
         # end for
-    _logger.info('Train: {} Time: {batch_time.sum:.3f}s'.format(epoch, batch_time=batch_time_m))
+    _logger.info('Train: {}  Time: {batch_time.sum:.3f}s'.format(epoch, batch_time=batch_time_m))
 
     if hasattr(optimizer, 'sync_lookahead'):
         optimizer.sync_lookahead()
@@ -373,16 +375,18 @@ def valid_one_epoch_ssl(epoch, student, loader, args, amp_autocast=suppress):
                 features = torch.zeros(len(loader.dataset), student_output.shape[-1])
             if labels is None:
                 labels = torch.zeros(len(loader.dataset))
-            if prediction is None:
-                prediction = torch.zeros(len(loader.dataset))
+            if args.use_sl_loss:
+                if prediction is None:
+                    prediction = torch.zeros(len(loader.dataset))
 
             start_idx = args.batch_size_per_gpu * batch_idx
             end_idx = args.batch_size_per_gpu * (batch_idx+1)
             features[start_idx:end_idx] = student_output
             labels[start_idx:end_idx] = sl_labels
-            prediction[start_idx:end_idx] = sl_pred
+            if args.use_sl_loss:
+                prediction[start_idx:end_idx] = sl_pred
 
-            torch.cuda.synchronize()
+            # torch.cuda.synchronize()
             # end for
         # end no_grad
 
@@ -396,7 +400,7 @@ def valid_one_epoch_ssl(epoch, student, loader, args, amp_autocast=suppress):
         prediction = prediction.view(-1).numpy()
         acc1_sl = 100 * accuracy_score(labels, prediction)
 
-    _logger.info(f'Valid: {epoch} k-NN Acc@1: {acc1_knn:>7.4f} {f" SL Acc@1: {acc1_sl:>7.4f} " if args.use_sl_loss else ""} Time: {time.time() - start:.3f}s')
+    _logger.info(f'Valid: {epoch}  k-NN Acc@1: {acc1_knn:>7.4f} {f" SL Acc@1: {acc1_sl:>7.4f} " if args.use_sl_loss else ""} Time: {time.time() - start:.3f}s')
 
     metrics = [('top1_knn', acc1_knn)]
     if args.use_sl_loss:

@@ -5,21 +5,18 @@ import torch.nn.functional as F
 
 
 class TortLoss(nn.Module):
-    def __init__(self, use_rep_loss, use_sl_loss, use_rot_loss, device, rep_w, sl_w, rot_w,
+    def __init__(self, use_sl_loss, use_rot_loss, device, rep_w, sl_w, rot_w,
                  out_dim, global_crops_number, masked_crops_number, local_crops_number, warmup_teacher_temp, 
                  teacher_temp, warmup_teacher_temp_epochs, num_epochs, student_temp, 
                  center_momentum, smoothing):
         super().__init__()
-        assert use_rep_loss or use_sl_loss or use_rot_loss, 'At least one loss function must be used.'
-        self.use_rep_loss = use_rep_loss
         self.use_sl_loss = use_sl_loss
         self.use_rot_loss = use_rot_loss
-        if self.use_rep_loss:
-            
-            self.rep_loss_fn = RepresentationCrossEntropyLoss(out_dim, 
-                                global_crops_number, masked_crops_number, local_crops_number, 
-                                warmup_teacher_temp, teacher_temp, warmup_teacher_temp_epochs, 
-                                num_epochs, student_temp, center_momentum).to(device)
+
+        self.rep_loss_fn = RepresentationCrossEntropyLoss(out_dim, 
+                            global_crops_number, masked_crops_number, local_crops_number, 
+                            warmup_teacher_temp, teacher_temp, warmup_teacher_temp_epochs, 
+                            num_epochs, student_temp, center_momentum).to(device)
         if self.use_sl_loss:
             self.sl_loss_fn = CrossEntropyLoss(smoothing).to(device)
         if self.use_rot_loss:
@@ -32,9 +29,8 @@ class TortLoss(nn.Module):
     def forward(self, student_output, teacher_output, epoch, 
                 sl_pred, sl_labels, 
                 rot_pred, rot_labels):
-        rep_loss, sl_loss, rot_loss = 0, 0, 0
-        if self.use_rep_loss:
-            rep_loss = self.rep_loss_fn(student_output, teacher_output, epoch)
+        sl_loss, rot_loss = 0, 0
+        rep_loss = self.rep_loss_fn(student_output, teacher_output, epoch)
         if self.use_sl_loss:
             sl_loss = self.sl_loss_fn(sl_pred, sl_labels)
         if self.use_rot_loss:
@@ -65,7 +61,6 @@ class RepresentationCrossEntropyLoss(nn.Module):
         teacher_temp = self.teacher_temp_schedule[epoch]
         teacher_out = F.softmax((teacher_output - self.center) / teacher_temp, dim=-1)
         teacher_out = teacher_out.detach().chunk(self.n_gm_crops)
-
         total_loss = 0
         n_loss_terms = 0
         for iq, q in enumerate(teacher_out):
