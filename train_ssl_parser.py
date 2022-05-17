@@ -37,8 +37,16 @@ def parse_ssl_args():
     parser.add_argument('--local_crops_scale', type=float, nargs='+', default=(0.05, 0.4),
         help="""Scale range of the cropped image before resizing, relatively to the origin image.
         Used for small local view cropping of multi-crop.""")
+    parser.add_argument('--masked_crop_scale', type=float, nargs='+', default=None,
+        help="""Scale range of the mask to be erased from the corresponding crop (0.2, 0.6)""")
 
     # Tort's models parameters
+    parser.add_argument('--use_rep_loss', default=True, type=bool)
+    parser.add_argument('--use_sl_loss', default=False, type=bool)
+    parser.add_argument('--use_rot_loss', default=False, type=bool)
+    parser.add_argument('--rep_w', default=1, type=float)
+    parser.add_argument('--sl_w', default=None, type=float)
+    parser.add_argument('--rot_w', default=None, type=float)
     parser.add_argument('--out_dim', default=65536, type=int, help="""Dimensionality of
         the DINO head output. For complex and large datasets large values (like 65k) work well.""")
     parser.add_argument('--norm_last_layer', default=True, type=bool,
@@ -58,6 +66,10 @@ def parse_ssl_args():
         starting with the default value of 0.04 and increase this slightly if needed.""")
     parser.add_argument('--warmup_teacher_temp_epochs', default=0, type=int,
         help='Number of warmup epochs for the teacher temperature (Default: 30).')
+    parser.add_argument('--student_temp', default=0.1, type=float)
+    parser.add_argument('--center_momentum', default=0.9, type=float)
+    parser.add_argument('--sl_smoothing', default=None, type=float)
+    parser.add_argument('--rot_prob', default=0.5, type=float)
 
     # Training/Optimization parameters
     parser.add_argument('--batch_size_per_gpu', default=64, type=int,
