@@ -400,7 +400,7 @@ def valid_one_epoch_ssl(epoch, student, loader, args, amp_autocast=suppress):
         prediction = prediction.view(-1).numpy()
         acc1_sl = 100 * accuracy_score(labels, prediction)
 
-    _logger.info(f'Valid: {epoch}  k-NN Acc@1: {acc1_knn:>7.4f} {f" SL Acc@1: {acc1_sl:>7.4f} " if args.use_sl_loss else ""} Time: {time.time() - start:.3f}s')
+    _logger.info(f'Valid: {epoch}  Time: {time.time() - start:.3f}s  k-NN Acc@1: {acc1_knn:>7.4f} {f" SL Acc@1: {acc1_sl:>7.4f} " if args.use_sl_loss else ""}')
 
     metrics = [('top1_knn', acc1_knn)]
     if args.use_sl_loss:

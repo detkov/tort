@@ -4,7 +4,7 @@ amp: true
 experiments_group: test_ssl
 
 momentum_teacher: 0.9998
-out_dim: 2048
+out_dim: 1024
 warmup_teacher_temp: 0.04
 teacher_temp: 0.04
 warmup_teacher_temp_epochs: 0
@@ -34,10 +34,11 @@ data_dir: ./
 
 log_wandb: false
 
-apply_masking: true
+apply_masking: false
 use_sl_loss: true
 use_rot_loss: true
 rep_w: 1
 sl_w: 1
 rot_w: 1
 rot_prob: 0.5
+sl_smoothing: 0

@@ -31,7 +31,7 @@ def parse_ssl_args():
         help="""Scale range of the cropped image before resizing, relatively to the origin image.
         Used for large global view cropping. When disabling multi-crop (--local_crops_number 0), we
         recommand using a wider range of scale ("--global_crops_scale 0.14 1." for example)""")
-    parser.add_argument('--local_crops_number', type=int, default=8, help="""Number of small
+    parser.add_argument('--local_crops_number', type=int, default=6, help="""Number of small
         local views to generate. Set this parameter to 0 to disable multi-crop training.
         When disabling multi-crop we recommend to use "--global_crops_scale 0.14 1." """)
     parser.add_argument('--local_crops_scale', type=float, nargs='+', default=(0.05, 0.4),
@@ -45,8 +45,8 @@ def parse_ssl_args():
     parser.add_argument('--use_sl_loss', default=False, type=bool)
     parser.add_argument('--use_rot_loss', default=False, type=bool)
     parser.add_argument('--rep_w', default=1, type=float)
-    parser.add_argument('--sl_w', default=None, type=float)
-    parser.add_argument('--rot_w', default=None, type=float)
+    parser.add_argument('--sl_w', default=0, type=float)
+    parser.add_argument('--rot_w', default=0, type=float)
     parser.add_argument('--out_dim', default=65536, type=int, help="""Dimensionality of
         the DINO head output. For complex and large datasets large values (like 65k) work well.""")
     parser.add_argument('--norm_last_layer', default=True, type=bool,
@@ -72,7 +72,7 @@ def parse_ssl_args():
     parser.add_argument('--rot_prob', default=0.5, type=float)
 
     # Training/Optimization parameters
-    parser.add_argument('--batch_size_per_gpu', default=64, type=int,
+    parser.add_argument('--batch_size_per_gpu', default=32, type=int,
         help='Per-GPU batch-size : number of distinct images loaded on one GPU.')
 
     # Optimizer parameters
@@ -124,7 +124,7 @@ def parse_ssl_args():
                         help='how many batches to wait before logging training status')
     parser.add_argument('--recovery_interval', type=int, default=0, 
                         help='how many batches to wait before writing recovery checkpoint')
-    parser.add_argument('--checkpoint_hist', type=int, default=5, 
+    parser.add_argument('--checkpoint_hist', type=int, default=1, 
                         help='number of checkpoints to keep (default: 5)')
     parser.add_argument('--workers', default=8, type=int, help='Number of data loading workers per GPU.')
     parser.add_argument('--amp', action='store_true', default=False,
