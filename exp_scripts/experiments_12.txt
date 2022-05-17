@@ -1,9 +1,0 @@
-python train_ssl.py -c configs/12/12_000.yaml && python train_ssl.py -c configs/12/12_001.yaml
-
-python train_ssl.py -c configs/12/12_002.yaml && python train_ssl.py -c configs/12/12_003.yaml
-
-python train_ssl.py -c configs/12/12_004.yaml && python train_ssl.py -c configs/12/12_005.yaml
-
-python train_ssl.py -c configs/12/12_006.yaml && python train_ssl.py -c configs/12/12_007.yaml
-
-python train_ssl.py -c configs/12/12_008.yaml && python train_ssl.py -c configs/12/12_009.yaml
