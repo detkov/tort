@@ -12,7 +12,7 @@ experiments_group: '34'
 local_crops_number: 6
 log_wandb: true
 lr: 0.0005
-masked_crop_scale: !!python/tuple
+masked_crop_scale:
 - 0.4
 - 0.6
 min_lr: 1.0e-06

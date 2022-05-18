@@ -56,7 +56,7 @@ if __name__ == '__main__':
         'log_wandb': True,
     }
     
-    par_masked_crop_scale = [(0.1, 0.3), (0.2, 0.4), (0.3, 0.5), (0.4, 0.6), (0.5, 0.7)]
+    par_masked_crop_scale = [[0.1, 0.3], [0.2, 0.4], [0.3, 0.5], [0.4, 0.6], [0.5, 0.7]]
 
     configs = []
     for masked_crop_scale in par_masked_crop_scale:
