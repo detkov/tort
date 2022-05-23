@@ -1,5 +1,5 @@
-# tort
-Tort: Self-supervised student-teacher ViT training for mortals
+# Tort
+<b>Tort</b>: Vi<b>T</b> for m<b>ort</b>als
 
 # Installation and dependencies
 Look into `REQUIREMENTS.md`

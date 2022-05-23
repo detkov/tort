@@ -58,7 +58,6 @@ def main():
     
     args.device = 'cuda'
 
-    # resolve AMP arguments based on PyTorch / Apex availability
     use_amp = None
     if args.amp:
         if has_native_amp:
@@ -113,7 +112,7 @@ def main():
 
     optimizer = create_optimizer_v2(student, **optimizer_kwargs(cfg=args))
 
-    # setup automatic mixed-precision (AMP) loss scaling and op casting
+
     amp_autocast = suppress  # do nothing
     loss_scaler = None
     if use_amp == 'apex':
@@ -127,7 +126,7 @@ def main():
     else:
         _logger.info('AMP not enabled. Training in float32.')
 
-    # optionally resume from a checkpoint
+
     resume_epoch = None
     if args.resume:
         resume_epoch = resume_checkpoint(
@@ -137,7 +136,7 @@ def main():
             # log_info=args.local_rank == 0)
             log_info=True)
 
-    # setup learning rate schedule and starting epoch
+
     lr_scheduler, num_epochs = create_scheduler(args, optimizer)
     start_epoch = 0
     if args.start_epoch is not None:
@@ -182,7 +181,7 @@ def main():
 
     momentum_scheduler = cosine_scheduler(args.momentum_teacher, 1, args.epochs, len(loader_train))
 
-    # setup checkpoint saver and eval metric tracking
+
     eval_metric = args.eval_metric
     best_metric = None
     best_epoch = None
@@ -308,11 +307,10 @@ def train_one_epoch_ssl(
 
         # EMA update for the teacher
         with torch.no_grad():
-            m = momentum_scheduler[batch_idx]  # momentum parameter
+            m = momentum_scheduler[batch_idx]
             for param_q, param_k in zip(student.parameters(), teacher.parameters()):
                 param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
 
-        # torch.cuda.synchronize()
         num_updates += 1
         batch_time_m.update(time.time() - end)
         if last_batch or batch_idx % args.log_interval == 0:
@@ -337,7 +335,7 @@ def train_one_epoch_ssl(
             lr_scheduler.step_update(num_updates=num_updates, metric=losses_m.avg)
 
         end = time.time()
-        # end for
+
     _logger.info('Train: {}  Time: {batch_time.sum:.3f}s'.format(epoch, batch_time=batch_time_m))
 
     if hasattr(optimizer, 'sync_lookahead'):
@@ -385,10 +383,6 @@ def valid_one_epoch_ssl(epoch, student, loader, args, amp_autocast=suppress):
             labels[start_idx:end_idx] = y_lbl
             if args.use_sl_loss:
                 prediction[start_idx:end_idx] = y_st_lbl
-
-            # torch.cuda.synchronize()
-            # end for
-        # end no_grad
 
     features = features.view(-1, features.shape[-1]).numpy()
     labels = labels.view(-1).numpy()

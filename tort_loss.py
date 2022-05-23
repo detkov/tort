@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from timm.loss import LabelSmoothingCrossEntropy
 
 
 class TortLoss(nn.Module):
@@ -85,7 +86,6 @@ class CrossEntropyLoss(nn.Module):
     def __init__(self, smoothing=None):
         super().__init__()
         if smoothing is not None:
-            from timm.loss import LabelSmoothingCrossEntropy
             self.loss = LabelSmoothingCrossEntropy(smoothing)
         else:
             self.loss = torch.nn.CrossEntropyLoss()

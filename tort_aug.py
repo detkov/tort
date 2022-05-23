@@ -23,7 +23,6 @@ class GaussianBlur(object):
             )
         )
 
-
 class Solarization(object):
     def __init__(self, p):
         self.p = p
@@ -96,7 +95,6 @@ class TortAugmenter(object):
         for _ in range(self.local_crops_number):
             crops.append(self.local_transform(image))
         return crops
-
 
 def rand_rot(batch, rot_prob):
     if np.random.random() > rot_prob:

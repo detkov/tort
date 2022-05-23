@@ -1,2 +1,8 @@
+torch
+torchvision
+sklearn
 timm
 wandb
+yaml
+numpy
+pillow

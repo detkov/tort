@@ -1,10 +1,9 @@
-from torchvision.datasets import FGVCAircraft, Flowers102, Food101, StanfordCars, OxfordIIITPet, FakeData
+from torchvision.datasets import Flowers102, FGVCAircraft, StanfordCars, OxfordIIITPet, FakeData
 
 
 dataset_config = {
-    'FGVCAircraft': [FGVCAircraft, ['train', 'val']],
     'Flowers102': [Flowers102, ['train', 'val']],
-    'Food101': [Food101, ['train', 'test']],
+    'FGVCAircraft': [FGVCAircraft, ['train', 'val']],
     'StanfordCars': [StanfordCars, ['train', 'test']],
     'OxfordIIITPet': [OxfordIIITPet, ['trainval', 'test']],
 }

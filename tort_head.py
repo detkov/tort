@@ -42,7 +42,6 @@ class TortHead(nn.Module):
         if self.is_rot_head:
             self.rot_head = nn.Linear(in_dim, 4) 
 
-
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
             trunc_normal_(m.weight, std=.02)
