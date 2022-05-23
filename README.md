@@ -1,5 +1,6 @@
-# Tort
+# Master Thesis. Tort
 <b>Tort</b>: Vi<b>T</b> for m<b>ort</b>als
+> Thesis can be found here: [`Master_Thesis_DetkovNS.pdf`](https://github.com/detkov/tort/blob/main/Master_Thesis_DetkovNS.pdf)  
 
 # Abstract
 Recently, models free of prior knowledge of the data have been gaining
